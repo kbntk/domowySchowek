@@ -1,0 +1,22 @@
+aplikacja na system Android - tytuł "Domowy Schowek"
+
+Tworzenie grup - np. pojemnik 1 duży
+W każdej grupie tworzenie list elementów i nadawanie im nazwy i opcjonalnie przypisanie zdjęcia,
+które wykonam kamerą telefonu. Zdjęcie zapisywane jest nie w oryginalnym rozmiarze, tylko
+640 na x gdzie 'x' jest wartością proporcjonalną do oryginalnej rozdzielczości.
+
+W aplikacji widoczne są grupy jako lista. Grupa też może mieć jedno zdjęcie grupy, też w rozmiarze
+640 na x. Do zrobienia zdjęcia grupy użyj kamery.
+Gdy dana grupa ma zdjęcie grupy, to zdjęcie wyświetla się pod nazwą grupy. Czyli mamy np.
+Grupa 1.
+<zdjęcie Grupa 1>
+Grupa 2.
+<zdjęcie Grupa 2>
+...
+
+Można zmienić nazwę grupy i jej zdjęcie.
+
+Gdy otworzę daną grupę, to na górze mam jej tytuł i ikonę zdjęcia. Gdy kliknę w ikonę zdjęcia, 
+to wyświetla mi się zdjęcie grupy.
+
+W grupie poniżej jej nazwy wyświetlane są alfabetycznie zapisane elementy i zdjęcie jeśli takowe istnieje.
