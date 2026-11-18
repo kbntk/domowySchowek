@@ -36,6 +36,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import android.content.ClipData
+import android.content.Context
+import android.content.Intent
+import eu.jakubzakrzewski.domowyschowek.util.Photos
+import java.io.File
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Photo
@@ -90,6 +99,14 @@ fun GroupDetailScreen(
     val sort: ItemSort = Prefs.itemSort(LocalContext.current)
     val sortedItems = remember(items, sort) { items.sortedItems(sort) }
 
+    // Filtr "as you type": lista zmienia się przy każdej zmianie tekstu, bez potwierdzania.
+    var filter by rememberSaveable { mutableStateOf("") }
+    val filterText = filter.trim()
+    val visibleItems = remember(sortedItems, filterText) {
+        if (filterText.isEmpty()) sortedItems
+        else sortedItems.filter { it.name.contains(filterText, ignoreCase = true) }
+    }
+
     // Fraza z wyszukiwania: pasujące elementy migają przez 2 sekundy.
     val query = highlight.trim()
     fun matches(item: Item) = query.isNotEmpty() && item.name.contains(query, ignoreCase = true)
@@ -108,8 +125,8 @@ fun GroupDetailScreen(
         label = "pulse",
     )
     val listState = rememberLazyListState()
-    LaunchedEffect(query, sortedItems) {
-        val first = sortedItems.indexOfFirst { matches(it) }
+    LaunchedEffect(query, visibleItems) {
+        val first = visibleItems.indexOfFirst { matches(it) }
         if (query.isNotEmpty() && first >= 0) listState.animateScrollToItem(first)
     }
 
@@ -141,39 +158,67 @@ fun GroupDetailScreen(
             }
         },
     ) { padding ->
-        if (items.isEmpty()) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "Brak elementów w tej grupie.",
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(sortedItems, key = { it.id }) { item ->
-                    val highlighted = blinking && matches(item)
-                    val container = if (highlighted) {
-                        lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.tertiaryContainer, pulse)
-                    } else {
-                        MaterialTheme.colorScheme.surface
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            OutlinedTextField(
+                value = filter,
+                onValueChange = { filter = it },
+                placeholder = { Text("Szukaj w grupie") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (filter.isNotEmpty()) {
+                        IconButton(onClick = { filter = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Wyczyść")
+                        }
                     }
-                    Card(
-                        onClick = { viewingId = item.id },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = container),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            )
+
+            when {
+                items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Brak elementów w tej grupie.",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+
+                visibleItems.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Brak elementów dla \"$filterText\".",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+
+                else -> LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(visibleItems, key = { it.id }) { item ->
+                        val highlighted = blinking && matches(item)
+                        val container = if (highlighted) {
+                            lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.tertiaryContainer, pulse)
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        }
+                        Card(
+                            onClick = { viewingId = item.id },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = container),
                         ) {
-                            item.photoPath?.let { Thumbnail(it, modifier = Modifier.padding(end = 12.dp)) }
-                            Text(item.name, style = MaterialTheme.typography.titleMedium)
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                item.photoPath?.let { Thumbnail(it, modifier = Modifier.padding(end = 12.dp)) }
+                                Text(item.name, style = MaterialTheme.typography.titleMedium)
+                            }
                         }
                     }
                 }
@@ -226,6 +271,7 @@ fun GroupDetailScreen(
         if (index >= 0) {
             ItemViewDialog(
                 item = sortedItems[index],
+                groupName = group.name,
                 hasPrevious = index > 0,
                 hasNext = index < sortedItems.lastIndex,
                 onPrevious = { viewingId = sortedItems[index - 1].id },
@@ -268,6 +314,26 @@ fun GroupDetailScreen(
 }
 
 private const val SWIPE_THRESHOLD_PX = 100f
+
+/** Udostępnia nazwę elementu wraz z nazwą grupy oraz zdjęcie, jeśli element je ma. */
+private fun shareItem(context: Context, item: Item, groupName: String) {
+    val text = "${item.name} (${groupName})"
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        putExtra(Intent.EXTRA_SUBJECT, item.name)
+        putExtra(Intent.EXTRA_TEXT, text)
+        val path = item.photoPath
+        if (path != null) {
+            val uri = Photos.uriFor(context, File(path))
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newRawUri("", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } else {
+            type = "text/plain"
+        }
+    }
+    context.startActivity(Intent.createChooser(intent, "Udostępnij element"))
+}
 private val addedDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
 
 private fun formatAdded(millis: Long): String =
@@ -280,6 +346,7 @@ private fun formatAdded(millis: Long): String =
 @Composable
 private fun ItemViewDialog(
     item: Item,
+    groupName: String,
     hasPrevious: Boolean,
     hasNext: Boolean,
     onPrevious: () -> Unit,
@@ -287,9 +354,17 @@ private fun ItemViewDialog(
     onEdit: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(item.name) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.name, modifier = Modifier.weight(1f))
+                IconButton(onClick = { shareItem(context, item, groupName) }) {
+                    Icon(Icons.Default.Share, contentDescription = "Udostępnij")
+                }
+            }
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(

@@ -9,7 +9,8 @@
 - **Elementy** – w każdej grupie zapisujesz elementy z nazwą i opcjonalnym zdjęciem. Elementy są wyświetlane pod nazwą grupy w wybranej kolejności sortowania (A–Z domyślnie, Z–A, najnowsze–najstarsze, najstarsze–najnowsze).
 - **Edycja** – możesz zmienić nazwę grupy, jej zdjęcie, a także nazwę i zdjęcie elementu. Grupę i elementy można usunąć.
 - **Wyszukiwanie** – pole "Szukaj" pod tytułem filtruje listę. Pokazuje grupy, których nazwa pasuje, oraz grupy, w których pasuje jakiś element, a pod grupą wypisuje pasujące elementy. Po wejściu do grupy z wyników pasujące elementy migają przez 2 sekundy, a lista przewija się do pierwszego z nich.
-- **Podgląd elementu** – kliknięcie elementu pokazuje jego nazwę, zdjęcie i datę dodania. Przesunięcie palcem po zdjęciu w lewo przechodzi do następnego elementu, w prawo do poprzedniego. Przycisk „Edytuj element" otwiera edycję.
+- **Filtr w grupie** – pole „Szukaj w grupie" pod tytułem grupy zawęża listę elementów przy każdej zmianie tekstu.
+- **Podgląd elementu** – kliknięcie elementu pokazuje jego nazwę, zdjęcie i datę dodania. Ikona udostępniania w nagłówku wysyła nazwę i zdjęcie elementu (np. mailem lub WhatsAppem). Przesunięcie palcem po zdjęciu w lewo przechodzi do następnego elementu, w prawo do poprzedniego. Przycisk „Edytuj element" otwiera edycję.
 - **Podgląd zdjęcia grupy** – w widoku grupy ikona zdjęcia pokazuje zdjęcie grupy na pełnym ekranie.
 - **Ustawienia** – ikona koła zębatego na liście grup. Zawiera wybór szerokości zapisywanych zdjęć, sortowanie elementów oraz eksport i import.
 - **Eksport** – wszystkie grupy albo wybrane grupy zapisujesz do wybranego katalogu. Powstaje plik `schowek.json` z listą grup i elementów, zdjęcia grup leżą obok niego, a zdjęcia elementów w podkatalogach nazwanych jak grupa.
@@ -48,6 +49,10 @@ Plik `local.properties` z ścieżką do Android SDK (`sdk.dir=...`) tworzy Andro
 - `icon.png` – źródło ikony aplikacji, `play-store-icon-512.png` – ikona do Google Play
 
 ## Historia zmian
+
+### 1.0.3
+- Filtr „Szukaj w grupie" w widoku grupy: lista zawęża się przy każdej zmianie tekstu, bez potwierdzania.
+- Udostępnianie elementu z podglądu (ikona udostępniania): wysyła nazwę elementu z nazwą grupy oraz zdjęcie, jeśli element je ma.
 
 ### 1.0.2
 - Ustawienia (ikona koła zębatego): eksport i import przeniesione tutaj.
