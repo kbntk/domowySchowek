@@ -9,7 +9,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.lerp
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -45,6 +56,7 @@ fun GroupDetailScreen(
     group: StorageGroup,
     items: List<Item>,
     onBack: () -> Unit,
+    highlight: String,
     onUpdateGroup: (name: String, photoPath: String?) -> Unit,
     onDeleteGroup: () -> Unit,
     onSaveItem: (existing: Item?, name: String, photoPath: String?) -> Unit,
@@ -58,6 +70,29 @@ fun GroupDetailScreen(
     var itemToDelete by remember { mutableStateOf<Item?>(null) }
 
     BackHandler(onBack = onBack)
+
+    // Fraza z wyszukiwania: pasujące elementy migają przez 2 sekundy.
+    val query = highlight.trim()
+    fun matches(item: Item) = query.isNotEmpty() && item.name.contains(query, ignoreCase = true)
+    var blinking by rememberSaveable { mutableStateOf(query.isNotEmpty()) }
+    LaunchedEffect(query) {
+        if (query.isNotEmpty()) {
+            blinking = true
+            delay(2_000)
+            blinking = false
+        }
+    }
+    val pulse by rememberInfiniteTransition(label = "blink").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(400), RepeatMode.Reverse),
+        label = "pulse",
+    )
+    val listState = rememberLazyListState()
+    LaunchedEffect(query, items) {
+        val first = items.indexOfFirst { matches(it) }
+        if (query.isNotEmpty() && first >= 0) listState.animateScrollToItem(first)
+    }
 
     Scaffold(
         topBar = {
@@ -97,12 +132,23 @@ fun GroupDetailScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(items, key = { it.id }) { item ->
-                    Card(onClick = { editingItem = item }, modifier = Modifier.fillMaxWidth()) {
+                    val highlighted = blinking && matches(item)
+                    val container = if (highlighted) {
+                        lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.tertiaryContainer, pulse)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                    Card(
+                        onClick = { editingItem = item },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = container),
+                    ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,

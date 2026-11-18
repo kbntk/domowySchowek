@@ -37,6 +37,10 @@ class SchowekViewModel(application: Application) : AndroidViewModel(application)
     val groups: StateFlow<List<StorageGroup>> = dao.observeGroups()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Wszystkie elementy ze wszystkich grup – potrzebne do wyszukiwania. */
+    val allItems: StateFlow<List<Item>> = dao.observeAllItems()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun observeGroup(id: Long): Flow<StorageGroup?> = dao.observeGroup(id)
 
     fun observeItems(groupId: Long): Flow<List<Item>> = dao.observeItems(groupId)

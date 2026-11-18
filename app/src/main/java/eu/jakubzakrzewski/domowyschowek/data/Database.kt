@@ -51,6 +51,9 @@ interface SchowekDao {
     @Query("SELECT * FROM storage_groups WHERE id = :id")
     fun observeGroup(id: Long): Flow<StorageGroup?>
 
+    @Query("SELECT * FROM items")
+    fun observeAllItems(): Flow<List<Item>>
+
     @Query("SELECT * FROM items WHERE groupId = :groupId ORDER BY name COLLATE NOCASE")
     fun observeItems(groupId: Long): Flow<List<Item>>
 

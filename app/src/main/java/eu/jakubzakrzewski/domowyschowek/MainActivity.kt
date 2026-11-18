@@ -33,15 +33,21 @@ class MainActivity : ComponentActivity() {
 private fun SchowekApp(vm: SchowekViewModel = viewModel()) {
     val groups by vm.groups.collectAsState()
     val conflict by vm.importConflict.collectAsState()
+    val allItems by vm.allItems.collectAsState()
     var openGroupId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var highlight by rememberSaveable { mutableStateOf("") }
 
     val groupId = openGroupId
     if (groupId == null) {
         GroupListScreen(
             groups = groups,
+            allItems = allItems,
             messages = vm.messages,
             importConflict = conflict,
-            onOpen = { openGroupId = it.id },
+            onOpen = { group, query ->
+                highlight = query
+                openGroupId = group.id
+            },
             onAdd = { name, photo -> vm.saveGroup(null, name, photo) },
             onExport = { ids, folder -> vm.exportGroups(folder, ids) },
             onImport = { folder -> vm.startImport(folder) },
@@ -56,6 +62,7 @@ private fun SchowekApp(vm: SchowekViewModel = viewModel()) {
                 group = current,
                 items = items,
                 onBack = { openGroupId = null },
+                highlight = highlight,
                 onUpdateGroup = { name, photo -> vm.saveGroup(current, name, photo) },
                 onDeleteGroup = {
                     openGroupId = null
