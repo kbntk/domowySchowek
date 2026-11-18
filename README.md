@@ -27,7 +27,7 @@ Wymagany jest JDK 17 lub nowszy (np. JBR 21 z Android Studio). Gradle musi widzi
 org.gradle.java.home=/sciezka/do/jdk-21
 ```
 
-Wymagany jest JDK 17 lub nowszy (np. JBR 21 z Android Studio):
+Komendy budowania:
 
 ```bash
 ./gradlew :app:assembleDebug        # APK debug
