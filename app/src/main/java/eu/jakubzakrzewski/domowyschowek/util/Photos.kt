@@ -14,8 +14,6 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 object Photos {
-    /** Zdjęcia są zapisywane z szerokością 640 px, a wysokość wynika z proporcji oryginału. */
-    const val TARGET_WIDTH = 640
     private const val JPEG_QUALITY = 90
 
     /** Plik tymczasowy, w którym aparat zapisze zdjęcie. */
@@ -28,18 +26,27 @@ object Photos {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
     /**
-     * Wczytuje zdjęcie z aparatu (z uwzględnieniem orientacji EXIF), skaluje do 640 px szerokości
-     * z zachowaniem proporcji i zapisuje jako JPEG w pamięci wewnętrznej aplikacji.
-     * Zwraca ścieżkę do zapisanego pliku lub null w razie błędu.
+     * Wczytuje zdjęcie z aparatu (z uwzględnieniem orientacji EXIF), skaluje do szerokości
+     * wybranej w ustawieniach (320, 480 lub 640 px) z zachowaniem proporcji i zapisuje jako JPEG
+     * w pamięci wewnętrznej aplikacji. Zwraca ścieżkę do pliku lub null w razie błędu.
      */
     suspend fun importScaled(context: Context, captured: File): String? = withContext(Dispatchers.IO) {
+        val targetWidth = Prefs.photoWidth(context)
         runCatching {
-            val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(captured)) { decoder, info, _ ->
+            // Dekodujemy najpierw w ~2x docelowej szerokości, a potem zmniejszamy filtrem dwuliniowym.
+            // Jednokrokowe skalowanie dużego zdjęcia z aparatu do 320 px daje wyraźnie miększy obraz.
+            val decoded = ImageDecoder.decodeBitmap(ImageDecoder.createSource(captured)) { decoder, info, _ ->
                 val width = info.size.width
                 val height = info.size.height
-                val targetHeight = max(1, (height.toDouble() * TARGET_WIDTH / width).roundToInt())
-                decoder.setTargetSize(TARGET_WIDTH, targetHeight)
+                if (width > targetWidth * 2) {
+                    val intermediateWidth = targetWidth * 2
+                    val intermediateHeight = max(1, (height.toDouble() * intermediateWidth / width).roundToInt())
+                    decoder.setTargetSize(intermediateWidth, intermediateHeight)
+                }
             }
+            val finalHeight = max(1, (decoded.height.toDouble() * targetWidth / decoded.width).roundToInt())
+            val bitmap = Bitmap.createScaledBitmap(decoded, targetWidth, finalHeight, true)
+            if (bitmap !== decoded) decoded.recycle()
             val dir = File(context.filesDir, "photos").apply { mkdirs() }
             val out = File(dir, "${UUID.randomUUID()}.jpg")
             FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }

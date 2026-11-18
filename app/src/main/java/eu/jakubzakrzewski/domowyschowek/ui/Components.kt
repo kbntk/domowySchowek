@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,9 +34,11 @@ import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,20 +53,35 @@ fun rememberBitmap(path: String?): State<Bitmap?> = produceState<Bitmap?>(null, 
     value = if (path == null) null else withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
 }
 
-/** Zdjęcie w pełnej szerokości, wysokość wynika z proporcji zdjęcia. */
+/** Zdjęcia o tej szerokości (w px) i większe są rozciągane na pełną szerokość ekranu. */
+private const val FULL_WIDTH_PX = 640
+
+/**
+ * Zdjęcie w widoku. Zdjęcia węższe niż 640 px nie są powiększane: wyświetlane są w rozmiarze,
+ * w jakim zostały zapisane (1 px obrazu = 1 px gęstości), nie szerzej niż dostępne miejsce.
+ * Wysokość wynika z proporcji zdjęcia.
+ */
 @Composable
 fun FullPhoto(path: String, modifier: Modifier = Modifier) {
     val bitmap by rememberBitmap(path)
-    bitmap?.let {
-        Image(
-            bitmap = it.asImageBitmap(),
-            contentDescription = null,
-            contentScale = ContentScale.FillWidth,
-            modifier = modifier
-                .fillMaxWidth()
-                .aspectRatio(it.width / it.height.toFloat())
-                .clip(RoundedCornerShape(8.dp)),
-        )
+    val density = LocalDensity.current.density
+    bitmap?.let { bmp ->
+        val ratio = bmp.width / bmp.height.toFloat()
+        val natural = (bmp.width / density).dp
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val shownWidth = if (bmp.width < FULL_WIDTH_PX) minOf(natural, maxWidth) else maxWidth
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                // Zdjęcia węższe niż 640 px są pokazywane 1:1, więc bez filtrowania zachowują ostrość pikseli.
+                filterQuality = if (bmp.width < FULL_WIDTH_PX) FilterQuality.None else FilterQuality.Low,
+                modifier = Modifier
+                    .width(shownWidth)
+                    .aspectRatio(ratio)
+                    .clip(RoundedCornerShape(8.dp)),
+            )
+        }
     }
 }
 
