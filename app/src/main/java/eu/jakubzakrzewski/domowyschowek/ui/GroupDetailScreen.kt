@@ -78,7 +78,7 @@ fun GroupDetailScreen(
     LaunchedEffect(query) {
         if (query.isNotEmpty()) {
             blinking = true
-            delay(2_000)
+            delay(1_000)
             blinking = false
         }
     }
