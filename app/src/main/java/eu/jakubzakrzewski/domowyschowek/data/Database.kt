@@ -1,6 +1,7 @@
 package eu.jakubzakrzewski.domowyschowek.data
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -13,6 +14,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
 import androidx.room.Entity
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /** Pojemnik / grupa, np. "Pojemnik 1 duży". [photoPath] – zdjęcie grupy (640 px szerokości). */
@@ -41,6 +44,8 @@ data class Item(
     val groupId: Long,
     val name: String,
     val photoPath: String? = null,
+    /** Data dodania w milisekundach od epoki. */
+    @ColumnInfo(defaultValue = "0") val createdAt: Long = 0,
 )
 
 @Dao
@@ -85,13 +90,22 @@ interface SchowekDao {
     suspend fun deleteItem(item: Item)
 }
 
-@Database(entities = [StorageGroup::class, Item::class], version = 1, exportSchema = false)
+@Database(entities = [StorageGroup::class, Item::class], version = 2, exportSchema = false)
 abstract class SchowekDatabase : RoomDatabase() {
     abstract fun dao(): SchowekDao
 
     companion object {
+        /** Dodaje datę dodania elementów. Stare elementy dostają datę migracji; kolejność zachowuje id. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE items SET createdAt = ${System.currentTimeMillis()}")
+            }
+        }
+
         fun create(context: Context): SchowekDatabase =
             Room.databaseBuilder(context.applicationContext, SchowekDatabase::class.java, "domowy_schowek.db")
+                .addMigrations(MIGRATION_1_2)
                 .build()
     }
 }

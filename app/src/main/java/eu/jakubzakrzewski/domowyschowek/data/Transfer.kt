@@ -21,7 +21,7 @@ import java.time.Instant
 const val EXPORT_JSON_NAME = "schowek.json"
 private const val FORMAT = "domowy-schowek"
 
-data class ImportItem(val name: String, val photo: Uri?)
+data class ImportItem(val name: String, val photo: Uri?, val createdAt: Long)
 data class ImportGroup(val name: String, val photo: Uri?, val items: List<ImportItem>)
 
 object Transfer {
@@ -52,7 +52,7 @@ object Transfer {
                         "$dirName/$base.jpg"
                     }
                     itemsJson.put(
-                        JSONObject().put("name", item.name).put("photo", itemRel ?: JSONObject.NULL)
+                        JSONObject().put("name", item.name).put("photo", itemRel ?: JSONObject.NULL).put("createdAt", item.createdAt)
                     )
                 }
 
@@ -82,6 +82,8 @@ object Transfer {
         val text = context.contentResolver.openInputStream(jsonFile.uri)?.bufferedReader()?.use { it.readText() }
             ?: error("Nie można odczytać $EXPORT_JSON_NAME")
         val groups = JSONObject(text).getJSONArray("groups")
+        // Pliki z wcześniejszych wersji nie mają daty dodania – dostają datę importu.
+        val importedAt = System.currentTimeMillis()
         List(groups.length()) { i ->
             val g = groups.getJSONObject(i)
             val items = g.optJSONArray("items") ?: JSONArray()
@@ -90,7 +92,7 @@ object Transfer {
                 photo = resolve(root, g.optStr("photo")),
                 items = List(items.length()) { j ->
                     val item = items.getJSONObject(j)
-                    ImportItem(item.getString("name"), resolve(root, item.optStr("photo")))
+                    ImportItem(item.getString("name"), resolve(root, item.optStr("photo")), item.optLong("createdAt", importedAt))
                 },
             )
         }
@@ -104,7 +106,12 @@ object Transfer {
             )
             for (item in group.items) {
                 dao.insertItem(
-                    Item(groupId = groupId, name = item.name, photoPath = item.photo?.let { Photos.copyFromUri(context, it) })
+                    Item(
+                        groupId = groupId,
+                        name = item.name,
+                        photoPath = item.photo?.let { Photos.copyFromUri(context, it) },
+                        createdAt = item.createdAt,
+                    )
                 )
             }
         }

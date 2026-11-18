@@ -73,7 +73,7 @@ class SchowekViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveItem(groupId: Long, existing: Item?, name: String, photoPath: String?) = viewModelScope.launch(Dispatchers.IO) {
         if (existing == null) {
-            dao.insertItem(Item(groupId = groupId, name = name, photoPath = photoPath))
+            dao.insertItem(Item(groupId = groupId, name = name, photoPath = photoPath, createdAt = System.currentTimeMillis()))
         } else {
             if (existing.photoPath != photoPath) Photos.delete(existing.photoPath)
             dao.updateItem(existing.copy(name = name, photoPath = photoPath))

@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import eu.jakubzakrzewski.domowyschowek.data.ItemSort
 import eu.jakubzakrzewski.domowyschowek.data.StorageGroup
 import eu.jakubzakrzewski.domowyschowek.util.Prefs
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +65,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var photoWidth by remember { mutableStateOf(Prefs.photoWidth(context)) }
+    var itemSort by remember { mutableStateOf(Prefs.itemSort(context)) }
     var exporting by rememberSaveable { mutableStateOf(false) }
     var pendingExport by rememberSaveable { mutableStateOf<LongArray?>(null) }
     val snackbar = remember { SnackbarHostState() }
@@ -128,6 +130,23 @@ fun SettingsScreen(
                     val suffix = if (width == Prefs.DEFAULT_PHOTO_WIDTH) " (domyślnie)" else ""
                     Text("$width px$suffix")
                 }
+            }
+
+            HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
+            Text("Sortowanie elementów", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(4.dp))
+            Text("Dotyczy wszystkich grup.", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            ItemSort.entries.forEach { sort ->
+                SortRow(
+                    label = sort.label,
+                    selected = itemSort == sort,
+                    onClick = {
+                        itemSort = sort
+                        Prefs.setItemSort(context, sort)
+                    },
+                )
             }
 
             HorizontalDivider(Modifier.padding(vertical = 16.dp))
@@ -199,6 +218,21 @@ private fun ExportDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Anuluj") } },
     )
+}
+
+@Composable
+private fun SortRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(Modifier.width(8.dp))
+        Text(label)
+    }
 }
 
 @Composable

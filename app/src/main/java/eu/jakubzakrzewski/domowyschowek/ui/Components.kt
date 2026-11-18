@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -39,6 +40,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -104,11 +109,12 @@ fun Thumbnail(path: String, size: Int = 56, modifier: Modifier = Modifier) {
  * i przekazywane do [onCaptured] jako ścieżka pliku.
  */
 @Composable
-fun rememberPhotoCapture(onCaptured: (String) -> Unit): () -> Unit {
+fun rememberPhotoCapture(onCaptured: (String) -> Unit, onReturn: () -> Unit = {}): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        onReturn()
         val file = pendingPath?.let(::File)
         pendingPath = null
         if (success && file != null) {
@@ -150,7 +156,26 @@ fun NameAndPhotoDialog(
         if (photo != initialPhoto) Photos.delete(photo)
     }
 
-    val capture = rememberPhotoCapture { photo = it }
+    // Po powrocie z aparatu system przywraca fokus na pole nazwy i wraca klawiatura.
+    // Zdejmujemy fokus z pola i chowamy klawiaturę, także po zapisaniu zdjęcia.
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    // Przy otwarciu okna od razu ustawiamy fokus w polu nazwy, żeby pojawiła się klawiatura.
+    val nameFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        nameFocus.requestFocus()
+    }
+    fun dropNameFocus() {
+        focusManager.clearFocus(force = true)
+        keyboard?.hide()
+    }
+    val capture = rememberPhotoCapture(
+        onCaptured = {
+            photo = it
+            dropNameFocus()
+        },
+        onReturn = { dropNameFocus() },
+    )
 
     AlertDialog(
         onDismissRequest = { discardNewPhoto(); onDismiss() },
@@ -162,7 +187,7 @@ fun NameAndPhotoDialog(
                     onValueChange = { name = it },
                     label = { Text(nameLabel) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusRequester(nameFocus),
                 )
                 photo?.let { FullPhoto(it) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

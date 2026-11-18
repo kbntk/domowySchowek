@@ -1,9 +1,20 @@
 package eu.jakubzakrzewski.domowyschowek.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.input.pointer.pointerInput
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -48,7 +59,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import eu.jakubzakrzewski.domowyschowek.data.Item
+import eu.jakubzakrzewski.domowyschowek.data.ItemSort
 import eu.jakubzakrzewski.domowyschowek.data.StorageGroup
+import eu.jakubzakrzewski.domowyschowek.data.sortedItems
+import eu.jakubzakrzewski.domowyschowek.util.Prefs
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,10 +81,14 @@ fun GroupDetailScreen(
     var editingGroup by rememberSaveable { mutableStateOf(false) }
     var confirmDeleteGroup by rememberSaveable { mutableStateOf(false) }
     var addingItem by rememberSaveable { mutableStateOf(false) }
+    var viewingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var editingItem by remember { mutableStateOf<Item?>(null) }
     var itemToDelete by remember { mutableStateOf<Item?>(null) }
 
     BackHandler(onBack = onBack)
+
+    val sort: ItemSort = Prefs.itemSort(LocalContext.current)
+    val sortedItems = remember(items, sort) { items.sortedItems(sort) }
 
     // Fraza z wyszukiwania: pasujące elementy migają przez 2 sekundy.
     val query = highlight.trim()
@@ -89,8 +108,8 @@ fun GroupDetailScreen(
         label = "pulse",
     )
     val listState = rememberLazyListState()
-    LaunchedEffect(query, items) {
-        val first = items.indexOfFirst { matches(it) }
+    LaunchedEffect(query, sortedItems) {
+        val first = sortedItems.indexOfFirst { matches(it) }
         if (query.isNotEmpty() && first >= 0) listState.animateScrollToItem(first)
     }
 
@@ -137,7 +156,7 @@ fun GroupDetailScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(items, key = { it.id }) { item ->
+                items(sortedItems, key = { it.id }) { item ->
                     val highlighted = blinking && matches(item)
                     val container = if (highlighted) {
                         lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.tertiaryContainer, pulse)
@@ -145,7 +164,7 @@ fun GroupDetailScreen(
                         MaterialTheme.colorScheme.surface
                     }
                     Card(
-                        onClick = { editingItem = item },
+                        onClick = { viewingId = item.id },
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = container),
                     ) {
@@ -202,6 +221,25 @@ fun GroupDetailScreen(
         )
     }
 
+    viewingId?.let { id ->
+        val index = sortedItems.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            ItemViewDialog(
+                item = sortedItems[index],
+                hasPrevious = index > 0,
+                hasNext = index < sortedItems.lastIndex,
+                onPrevious = { viewingId = sortedItems[index - 1].id },
+                onNext = { viewingId = sortedItems[index + 1].id },
+                onEdit = {
+                    val item = sortedItems[index]
+                    viewingId = null
+                    editingItem = item
+                },
+                onDismiss = { viewingId = null },
+            )
+        }
+    }
+
     editingItem?.let { item ->
         NameAndPhotoDialog(
             title = "Edytuj element",
@@ -227,4 +265,71 @@ fun GroupDetailScreen(
             onDismiss = { itemToDelete = null },
         )
     }
+}
+
+private const val SWIPE_THRESHOLD_PX = 100f
+private val addedDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+
+private fun formatAdded(millis: Long): String =
+    addedDateFormat.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+
+/**
+ * Podgląd elementu: nazwa i zdjęcie bez możliwości edycji. Przesunięcie palcem po zdjęciu w lewo
+ * przechodzi do następnego elementu, w prawo do poprzedniego. Pod zdjęciem data dodania i przycisk edycji.
+ */
+@Composable
+private fun ItemViewDialog(
+    item: Item,
+    hasPrevious: Boolean,
+    hasNext: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onEdit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(item.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(item.id, hasPrevious, hasNext) {
+                            var total = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { total = 0f },
+                                onDragCancel = { total = 0f },
+                                onDragEnd = {
+                                    when {
+                                        total < -SWIPE_THRESHOLD_PX && hasNext -> onNext()
+                                        total > SWIPE_THRESHOLD_PX && hasPrevious -> onPrevious()
+                                    }
+                                },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    total += dragAmount
+                                },
+                            )
+                        },
+                ) {
+                    if (item.photoPath != null) {
+                        FullPhoto(item.photoPath)
+                    } else {
+                        Text("Ten element nie ma zdjęcia.")
+                    }
+                }
+                Text(
+                    "Dodano: ${formatAdded(item.createdAt)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Edit, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Edytuj element")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Zamknij") } },
+    )
 }
